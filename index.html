@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fall Flavor Favorites</title>
+<style>
+:root{--cream:#fff7e8;--paper:#fffdf8;--rust:#a84b2a;--orange:#cf6b2d;--gold:#d59a32;--brown:#5c3928;--green:#65744d}
+*{box-sizing:border-box}body{margin:0;color:var(--brown);font-family:Georgia,serif;background:radial-gradient(circle at 10% 10%,#e7b45b33 0 7%,transparent 8%),linear-gradient(#fff0d6,var(--cream));min-height:100vh}
+header{text-align:center;padding:42px 18px 22px}.eyebrow{font:700 12px Arial;letter-spacing:3px;color:var(--rust);text-transform:uppercase}h1{font-size:clamp(2.6rem,7vw,5rem);margin:8px 0;color:var(--rust)}header p{font:16px Arial;max-width:650px;margin:auto;line-height:1.5}
+#status{margin:12px auto 22px;text-align:center;font:13px Arial;color:#74533f}.grid{width:min(1120px,calc(100% - 28px));margin:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;padding-bottom:40px}
+.card{background:var(--paper);border:1px solid #ead6b7;border-radius:20px;overflow:hidden;box-shadow:0 9px 25px #6b43251c}.photo{aspect-ratio:4/3;overflow:hidden;cursor:pointer;background:#ead8bc}.photo img{width:100%;height:100%;object-fit:cover;transition:.3s}.photo:hover img{transform:scale(1.05)}.info{padding:16px}.tag{font:700 11px Arial;letter-spacing:1.5px;text-transform:uppercase;color:#87644e}.name{font-size:1.35rem;margin:5px 0 13px}.row{display:flex;align-items:center;gap:10px}.vote{flex:1;border:0;border-radius:999px;background:var(--rust);color:white;padding:11px;cursor:pointer;font-weight:700}.vote:disabled{background:#bca894;cursor:not-allowed}.count{font:700 13px Arial;white-space:nowrap}.modal-bg{position:fixed;inset:0;background:#321f16aa;display:none;align-items:center;justify-content:center;padding:18px;z-index:10}.modal-bg.open{display:flex}.modal{width:min(600px,100%);background:#fffaf1;border-radius:22px;overflow:hidden;position:relative;box-shadow:0 25px 70px #0006}.modal img{width:100%;max-height:330px;object-fit:cover}.modal-content{padding:22px}.modal h2{margin:5px 0;color:var(--rust);font-size:2rem}.modal p{font:16px/1.65 Arial}.close{position:absolute;right:12px;top:12px;border:0;border-radius:50%;width:40px;height:40px;background:#fff;color:var(--brown);font-size:25px;cursor:pointer}.owner{width:min(1120px,calc(100% - 28px));margin:0 auto 30px;background:#fffaf1;border:1px solid #dfc7a5;border-radius:18px;padding:18px;display:none}.owner.show{display:block}.owner h2{margin:0;color:var(--green)}.owner p,.owner label{font:13px/1.45 Arial}.owner input,.owner textarea{width:100%;padding:9px;margin:4px 0 8px;border:1px solid #d7bea0;border-radius:8px}.owner textarea{min-height:65px}.edit-card{border-top:1px dashed #dbc4a4;padding:15px;display:none}.edit-mode .edit-card{display:block}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.btn{border:0;border-radius:999px;padding:10px 15px;cursor:pointer;font-weight:700}.green{background:var(--green);color:white}.orange{background:var(--orange);color:white}.tan{background:#ead8bc;color:var(--brown)}.danger{background:#efd0c4;color:#7b3021}.owner .hint{color:#7c604b}.admin-toggle{text-align:center;margin-bottom:25px}.admin-toggle button{border:0;border-radius:999px;padding:10px 15px;background:#e5d3b8;color:var(--brown);cursor:pointer;font-weight:700}footer{text-align:center;padding:0 20px 30px;font:12px Arial;color:#876b56}
+</style>
+</head>
+<body>
+<header>
+<div class="eyebrow">🍂 Autumn • Cozy • Delicious 🍁</div>
+<h1>Fall Flavor Favorites</h1>
+<p>Click a picture to learn more, then vote for your favorite fall flavor!</p>
+</header>
+
+<div id="status">Connecting to the shared vote board…</div>
+<div class="admin-toggle"><button onclick="ownerLogin()">✎ Owner Edit Mode</button></div>
+<section class="owner" id="ownerPanel">
+<h2>Owner Controls</h2>
+<p class="hint">Only use this panel to change the flavor information. Voting is handled separately in the shared database.</p>
+<div id="editor"></div>
+<div class="actions">
+<button class="btn orange" onclick="saveFlavors()">Save Flavor Changes</button>
+<button class="btn green" onclick="addFlavor()">＋ Add Flavor</button>
+<button class="btn tan" onclick="ownerLogout()">Exit Edit Mode</button>
+</div>
+</section>
+
+<main class="grid" id="grid"></main>
+
+<div class="modal-bg" id="modalBg" onclick="closeModal(event)">
+<div class="modal">
+<button class="close" onclick="closeModal()">×</button>
+<img id="modalImg" alt="">
+<div class="modal-content"><div class="tag" id="modalTag"></div><h2 id="modalTitle"></h2><p id="modalBio"></p></div>
+</div>
+</div>
+<footer>Fall Flavor Favorites 🍁</footer>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+import {getAuth,signInAnonymously,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+import {getFirestore,doc,getDoc,setDoc,updateDoc,increment,onSnapshot,collection,runTransaction,serverTimestamp} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+
+/* ===== PASTE YOUR FIREBASE CONFIG HERE ===== */
+const firebaseConfig={
+  apiKey: "AIzaSyBsp1x6zPQ6aoJbOFVijsEO7COFuS-Q68A",
+  authDomain: "cooking-up-charity.firebaseapp.com",
+  projectId: "cooking-up-charity",
+  storageBucket: "cooking-up-charity.firebasestorage.app",
+  messagingSenderId: "361961842534",
+  appId: "1:361961842534:web:b636b0f0eca7ed7aa2caa7",
+  measurementId: "G-MPPEKCY2QZ"
+};
+/* =========================================== */
+
+const OWNER_PIN="4826"; // Change this before publishing.
+const starter=[
+{id:"pumpkin",name:"Pumpkin Spice",tag:"Classic Fall",img:"https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&w=900&q=80",bio:"A cozy blend of pumpkin and warm baking spices that has become a classic autumn flavor."},
+{id:"apple",name:"Caramel Apple",tag:"Sweet & Tart",img:"https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=900&q=80",bio:"Crisp apple paired with buttery caramel for a sweet fall favorite."},
+{id:"maple",name:"Maple",tag:"Warm & Sweet",img:"https://images.unsplash.com/photo-1589927986089-35812388d1f4?auto=format&fit=crop&w=900&q=80",bio:"Rich maple flavor that works beautifully in pancakes, baked goods, oatmeal, and warm drinks."},
+{id:"cinnamon",name:"Cinnamon",tag:"Warm Spice",img:"https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=900&q=80",bio:"Warm and fragrant cinnamon adds cozy-season flavor to breads, pastries, drinks, and desserts."},
+{id:"chai",name:"Chai",tag:"Spiced",img:"https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=900&q=80",bio:"A fragrant tea flavor with warming spices such as cinnamon, cardamom, ginger, and cloves."},
+{id:"pecan",name:"Pecan",tag:"Nutty & Rich",img:"https://images.unsplash.com/photo-1519623676966-5f3d2e8a2c1a?auto=format&fit=crop&w=900&q=80",bio:"Buttery, nutty pecans are a cozy match for pies, cookies, pralines, and other desserts."},
+{id:"cocoa",name:"Hot Cocoa",tag:"Cozy Favorite",img:"https://images.unsplash.com/photo-1542990253-0d0f5be5f6f0?auto=format&fit=crop&w=900&q=80",bio:"A rich chocolatey drink made especially cozy with warm milk and favorite toppings."},
+{id:"gingerbread",name:"Gingerbread",tag:"Holiday Spice",img:"https://images.unsplash.com/photo-1519869325930-281384150729?auto=format&fit=crop&w=900&q=80",bio:"A warmly spiced flavor featuring ginger and classic baking spices."}
+];
+
+let app,db,auth,user,flavors=[],owner=false;
+
+const $=id=>document.getElementById(id);
+function escapeHTML(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function escapeAttr(v){return escapeHTML(v)}
+function configReady(){return firebaseConfig.apiKey.startsWith("PASTE_")===false&&firebaseConfig.projectId.startsWith("PASTE_")===false}
+
+async function start(){
+ if(!configReady()){ $("status").innerHTML="⚙️ <strong>Setup needed:</strong> paste your Firebase configuration into this file, then reload."; renderLocal(); return; }
+ try{
+  app=initializeApp(firebaseConfig);db=getFirestore(app);auth=getAuth(app);
+  onAuthStateChanged(auth,async u=>{if(u){user=u; await ensureSetup(); listen();}else signInAnonymously(auth).catch(showError)});
+  await signInAnonymously(auth);
+ }catch(e){showError(e)}
+}
+async function ensureSetup(){
+ const ref=doc(db,"settings","flavors"),snap=await getDoc(ref);
+ if(!snap.exists()) await setDoc(ref,{items:starter,updatedAt:serverTimestamp()});
+}
+function listen(){
+ onSnapshot(doc(db,"settings","flavors"),snap=>{flavors=snap.exists()?snap.data().items:starter;render();if(owner)renderEditor()});
+ onSnapshot(collection(db,"flavors"),snap=>{
+  const counts={};snap.forEach(d=>counts[d.id]=d.data().count||0);
+  window.voteCounts=counts;render();
+ });
+ $("status").textContent="🟢 Connected — votes are shared with everyone viewing this page.";
+}
+function showError(e){console.error(e);$("status").textContent="Could not connect to the shared vote board. Check your Firebase setup."}
+function renderLocal(){flavors=starter;render()}
+function render(){
+ const grid=$("grid"),counts=window.voteCounts||{};grid.innerHTML="";
+ flavors.forEach(f=>{
+  const card=document.createElement("article");card.className="card";
+  const already=localStorage.getItem("voted_"+f.id)==="yes";
+  card.innerHTML=`<div class="photo" onclick="openModal('${escapeAttr(f.id)}')"><img src="${escapeAttr(f.img)}" alt="${escapeAttr(f.name)}"></div>
+  <div class="info"><div class="tag">${escapeHTML(f.tag)}</div><div class="name">${escapeHTML(f.name)}</div>
+  <div class="row"><button class="vote" ${already?"disabled":""} onclick="vote('${escapeAttr(f.id)}')">${already?"✓ Voted":"Vote for this!"}</button><span class="count">${counts[f.id]||0} vote${(counts[f.id]||0)==1?"":"s"}</span></div></div>`;
+  grid.appendChild(card);
+ });
+}
+window.vote=async id=>{
+ if(!user){alert("Still connecting. Please try again.");return}
+ if(localStorage.getItem("voted_"+id)==="yes")return;
+ const ref=doc(db,"flavors",id);
+ try{
+  await runTransaction(db,async tx=>{
+   const snap=await tx.get(ref);
+   if(snap.exists())tx.update(ref,{count:increment(1)});
+   else tx.set(ref,{count:1});
+  });
+  localStorage.setItem("voted_"+id,"yes");render();
+ }catch(e){alert("The vote could not be recorded. Please try again.");console.error(e)}
+};
+window.openModal=id=>{
+ const f=flavors.find(x=>x.id===id);if(!f)return;
+ $("modalImg").src=f.img;$("modalImg").alt=f.name;$("modalTag").textContent=f.tag;$("modalTitle").textContent=f.name;$("modalBio").textContent=f.bio;$("modalBg").classList.add("open");
+};
+window.closeModal=e=>{if(!e||e.target.id==="modalBg"||e.target.classList.contains("close"))$("modalBg").classList.remove("open")};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")$("modalBg").classList.remove("open")});
+
+window.ownerLogin=()=>{
+ const pin=prompt("Enter your owner PIN:");
+ if(pin===OWNER_PIN){owner=true;$("ownerPanel").classList.add("show");document.body.classList.add("edit-mode");renderEditor()}
+ else if(pin!==null)alert("Incorrect PIN.");
+};
+window.ownerLogout=()=>{owner=false;$("ownerPanel").classList.remove("show");document.body.classList.remove("edit-mode")};
+function renderEditor(){
+ $("editor").innerHTML=flavors.map((f,i)=>`<div class="edit-card" style="display:block"><label>Flavor name</label><input id="n${i}" value="${escapeAttr(f.name)}">
+<label>Category</label><input id="t${i}" value="${escapeAttr(f.tag)}"><label>Picture URL</label><input id="i${i}" value="${escapeAttr(f.img)}">
+<label>Bio</label><textarea id="b${i}">${escapeHTML(f.bio)}</textarea>
+<button class="btn danger" onclick="deleteFlavor(${i})">Delete</button></div>`).join("");
+}
+window.saveFlavors=async()=>{
+ if(!owner||!db)return;
+ const updated=flavors.map((f,i)=>({...f,name:$("n"+i).value.trim(),tag:$("t"+i).value.trim(),img:$("i"+i).value.trim(),bio:$("b"+i).value.trim()}));
+ try{await setDoc(doc(db,"settings","flavors"),{items:updated,updatedAt:serverTimestamp()});flavors=updated;alert("Saved! Everyone will now see the updated flavors.");}
+ catch(e){alert("Could not save changes.");console.error(e)}
+};
+window.addFlavor=()=>{
+ flavors=[...flavors,{id:"flavor-"+Date.now(),name:"New Fall Flavor",tag:"Your Category",img:"",bio:"Add a short description here."}];renderEditor();
+};
+window.deleteFlavor=i=>{if(confirm("Delete this flavor?")){flavors=flavors.filter((_,x)=>x!==i);renderEditor()}};
+start();
+</script>
+</body>
+</html>
